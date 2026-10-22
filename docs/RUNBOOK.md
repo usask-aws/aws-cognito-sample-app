@@ -12,34 +12,6 @@ This is the home for all deployment steps, including
 
 ---
 
-## At a glance
-
-| Fact | Value |
-|---|---|
-| Region | `ca-central-1` (only — do not deploy elsewhere) |
-| App URL | `https://sarcastifyer.example.com` (`var.domain_name`; also `terraform output -raw app_url`). HTTPS only: port 80 redirects to the root over HTTPS. |
-| DNS | `example.com` is an org-controlled Route 53 zone in another account. Terraform can't write to it; changes go through the org DNS approval workflow. Nine records belong to this app (the domain → ALB alias, the ACM validation CNAME, and the mail and SES records); see [step 3](#3-request-the-dns-records). |
-| TLS | ACM certificate in `ca-central-1`, attached to the ALB's 443 listener. TLS ends at the ALB; the ALB → task hop is HTTP on 8080 inside the VPC. The ALB sets HSTS. |
-| Sign-in (Cognito) | Two user pools in `ca-central-1`, Essentials plan. **Users** (`sarcastifyer-users`): email one-time code at `https://sarcastifyer.example.com/`. **Admins** (`sarcastifyer-admins`): password + optional TOTP/email MFA at `/admin`; created with the CLI only. Managed login on prefix domains `sarcastifyer-users` / `sarcastifyer-admins` `.auth.ca-central-1.amazoncognito.com`. IDs: `terraform output cognito_users_pool_id` (and `_admins_`, `_client_id`). |
-| ECS cluster name | `sarcastifyer` |
-| ECS service name | `sarcastifyer` |
-| Task def family | `sarcastifyer` (Fargate, **X86_64**, 0.25 vCPU / 0.5 GB) |
-| CloudWatch log group | `/ecs/sarcastifyer` (30-day retention, stream prefix `app`) |
-| Health check | `GET /healthz` on container port 8080 |
-| Secrets (Secrets Manager) | `sarcastifyer/anthropic-api-key`, `sarcastifyer/flask-signing-key`, `sarcastifyer/cognito-users-client`, `sarcastifyer/cognito-admins-client` |
-| Terraform root | `infra/` (state in S3, native locking, no DynamoDB) |
-| Network | Existing, org-managed `Primary_VPC`. The ALB uses `Public_Subnet_1A` + `Public_Subnet_1B`, and the task runs in `Public_Subnet_1A`. Terraform looks these up by Name tag and does not manage them. |
-| Model | `claude-opus-4-8`, `max_tokens=4096` ([app/config.py](../app/config.py)) |
-| Email (SES), outbound | From `hello@sarcastifyer.example.com` (`email_sender`) to the signed-in user's own address, plus Cognito invitations and codes. Domain identity with Easy DKIM, custom MAIL FROM `mail.sarcastifyer.example.com`, DMARC `p=quarantine`. The account has SES **production access** (50,000/day, 14/s). See [Email (SES)](#email-ses). |
-| Email (SES), inbound | `hello@`, `postmaster@`, `abuse@`, `webmaster@` on the domain (`inbound_local_parts`). Stored in S3 bucket `sarcastifyer-inbound-mail-<account-id>-ca-central-1` (7-day expiry), forwarded to `forward_to` by Lambda `sarcastifyer-inbound-forwarder` (logs `/aws/lambda/sarcastifyer-inbound-forwarder`). Inbound mail is Internal data. |
-| Alerts | SNS topic `sarcastifyer-alerts`, emailed to `forward_to`: SES bounces and complaints, plus the `sarcastifyer-inbound-forwarder-errors` alarm. |
-
-**The app is in production and normally runs one task (`desired_count=1`).** It can be
-scaled to zero while it won't be used, to save cost. Terraform always declares `1`, so
-that mismatch is deliberate — see [intentional drift](#intentional-drift-desired_count).
-
----
-
 ## First-time setup
 
 A start-to-finish timeline, from an account with no state bucket and no app
@@ -62,7 +34,7 @@ pending.
   in different AZs, each routed to an internet gateway. Terraform only looks these
   up, so `plan` fails if they're missing.
 - Access to the org DNS change workflow for the `example.com` zone.
-- `infra/environment.auto.tfvars` with the production values. It's gitignored, so a fresh
+- `infra/environment.auto.tfvars` with the desired values. It's gitignored, so a fresh
   clone doesn't have it. Copy the template and replace every `<placeholder>`:
   `cp infra/environment.auto.tfvars.example infra/environment.auto.tfvars`. Without it,
   `plan` and `apply` prompt for each variable.
@@ -366,16 +338,6 @@ because the tag already exists. The apply fails at plan time if the tag has no i
 After a deploy the service is at `desired_count=1` (running). If the app should be
 dormant again, [scale it back to zero](#go-dormant-scale-to-zero).
 
-> **Note for agents:** when asked to deploy, follow this section. Confirm with the
-> user before running it, then report the deployed tag and the app URL. The restart
-> and brief downtime that a deploy, or any `terraform apply` that registers a new
-> task def, causes are expected: never warn about them or ask for confirmation
-> because of them.
-
-> A deploy tags by the committed HEAD SHA but builds the working tree — commit (or
-> knowingly accept) uncommitted changes first, or the running image won't match its
-> tag's source.
-
 ### Go dormant (scale to zero)
 Optional, to save cost while the app won't be used for a while:
 ```bash
@@ -414,9 +376,6 @@ Typical entries: an organization's network range, a trusted desktop's static IP
 (`/32`), or a trusted desktop's dynamic-IP range (`/24`). To add an operator, add
 their static public IP as a `/32`.
 
-> Set `TF_VAR_image_tag` to the deployed tag before applying
-> ([Routine operations](#routine-operations)).
-
 ### Rotate secrets
 - **Anthropic API key** (kept out of TF state):
   ```bash
@@ -437,8 +396,9 @@ their static public IP as a `/32`.
 How outbound, inbound and alert email work is in [DESIGN.md §8](DESIGN.md#8-email). The DNS
 records are in [First-time setup step 3](#3-request-the-dns-records). All of them are permanent.
 
-**Production access.** The account has SES production access, so recipients don't have to be
-verified. Check with `aws sesv2 get-account --region ca-central-1 --query ProductionAccessEnabled`.
+**Production access.** You will want to move from Sandbox access to Production access in
+the account that owns SES. That is outside the scope of this documentation.
+ Check with `aws sesv2 get-account --region ca-central-1 --query ProductionAccessEnabled`.
 
 **Domain status.** Check that DKIM and MAIL FROM are still healthy:
 ```bash
@@ -523,19 +483,6 @@ else uses the CLI. Set `POOL=$(cd infra && terraform output -raw cognito_admins_
 aws logs tail /ecs/sarcastifyer --region ca-central-1 --follow
 ```
 
-### Raise the HSTS max-age
-First-time setup starts HSTS at `max-age=300` (five minutes). Browsers remember the
-HSTS setting for that long, and while they do, there's no going back to HTTP. Once
-HTTPS has run cleanly for a few days, raise it to one year: in
-[infra/alb.tf](../infra/alb.tf), set
-`routing_http_response_strict_transport_security_header_value = "max-age=31536000"`
-on `aws_lb_listener.https`, then `terraform apply` and check:
-```bash
-curl -sI https://sarcastifyer.example.com/healthz | grep -i strict-transport
-```
-Leave out `includeSubDomains` and `preload`
-([DESIGN.md §3.2](DESIGN.md#32-edge-alb-tls-and-hsts)).
-
 ### Certificate renewal
 ACM renews the certificate automatically before it expires, as long
 as the validation CNAME is still published and the certificate is attached to the
@@ -608,7 +555,7 @@ Then deal with the app's records in the org DNS zone (the full list is in
 ## Intentional drift: `desired_count`
 
 Terraform declares `desired_count = 1` ([infra/ecs.tf](../infra/ecs.tf)), and in
-production the service normally runs at 1. While the app won't be used for a while,
+day to day use the service normally runs at 1. While the app won't be used for a while,
 it may be held at **0** via the CLI to avoid paying for an idle Fargate task. **That
 drift is expected — do not flag it in reviews.** Any `terraform apply` relaunches a
 task (reset to 1); if the app should stay dormant,

@@ -12,23 +12,13 @@ of text, the app sends it to the Anthropic API with an instruction to rewrite it
 sarcastic while keeping its original intent, and **streams** the rewritten text back to the
 browser. The person can also have the input and result emailed to their own address.
 
-- **URL:** `https://sarcastifyer.example.com`, HTTPS only.
+- **URL:** `https://sarcastifyer.example.com`, HTTPS only. (Not a real address)
 - **Region:** every AWS resource is in `ca-central-1`.
 - **Who can use it:** anyone with an account. The network is open to all IPs. Accounts live in
   two Amazon Cognito user pools: **users**, who sign in with an emailed one-time code, and
   **admins**, who sign in with a password and optional MFA and can manage users at `/admin`.
 - **State:** none in the app. There's no database. Cognito holds all user state, and the session
   is a signed cookie.
-- **Data classification:** **Internal** (see [§11](#11-data-classification-and-governance)).
-
-**Non-goals:**
-- a database or any app-side user store, and stored history or multi-turn memory
-- horizontal scaling, or more than one task
-- a CI/CD pipeline (deploys are manual, from the runbook)
-- self-signup, federation (no organizational IdP, SAML, OIDC or social sign-in), passkeys
-- passwords or MFA for user-pool accounts, and SMS or phone numbers in either pool
-- managing admins from the UI, Cognito groups, and custom domains or branding for the sign-in pages
-- Cognito threat protection (Plus plan only) and a WAF on the user pools
 
 ---
 
@@ -85,15 +75,14 @@ Browser → WAF → ALB (TLS ends) → Flask
 
 The account's network is **org-managed** and Terraform only looks it up by Name tag
 ([infra/vpc.tf](../infra/vpc.tf)): VPC `Primary_VPC`, with public subnets `Public_Subnet_1A` and
-`Public_Subnet_1B` routed to an internet gateway. There's no NAT gateway.
+`Public_Subnet_1B` routed to an internet gateway. There's no NAT gateway. YOUR VPC NAMES
+WILL BE DIFFERENT - change the code as required.
 
 - The **ALB** spans both public subnets (an ALB needs two AZs).
 - The **task** runs in `Public_Subnet_1A` with a public IP, used only for outbound calls (ECR,
   Secrets Manager, Cognito, SES, Anthropic).
 - **Security groups:**
-  - ALB: ingress 80 and 443 from `0.0.0.0/0`; egress all. Its description still says "campus
-    allowlist only": changing a security group's description forces its replacement, so the stale
-    wording is kept on purpose.
+  - ALB: ingress 80 and 443 from `0.0.0.0/0`; egress all.
   - Task: ingress 8080 from the ALB security group only; egress all.
 
 ### 3.2 Edge: ALB, TLS and HSTS
@@ -134,8 +123,7 @@ hit before the app's 5,000-character cap does.
 Password and code entry happen on Cognito's managed login, which this WAF doesn't cover.
 
 **Allowlist (not in use).** `var.allowed_cidrs` feeds the WAF IP set `sarcastifyer-allow`, but no
-rule or security group references it. It's kept so that an allowlist can be turned back on (the
-runbook has the steps).
+rule or security group references it. It's kept so that an allowlist can be turned back on.
 
 ### 3.4 Compute: ECS Fargate, one task
 
@@ -159,7 +147,7 @@ runbook has the steps).
 - **ECR** repository `sarcastifyer`, scan on push, **immutable tags**. A lifecycle policy keeps the
   two newest tagged images (deployed and previous, for rollback) and expires untagged images after
   a day.
-- **Tags:** each deploy pushes the commit's **short git SHA**. There's no `latest`. `image_tag`
+- **Tags:** each deploy pushes the commit's **short git SHA**. `image_tag`
   is required. Terraform resolves it to the image digest (`aws_ecr_image`), and the task
   definition pins `repo@sha256:…`. A new SHA means a new digest and a new task definition.
   Re-applying the deployed tag (`terraform output image_tag`) changes nothing.
@@ -179,7 +167,7 @@ runbook has the steps).
 - **State:** S3 bucket named in the gitignored `infra/backend.hcl` (a partial
   [infra/backend.tf](../infra/backend.tf)), encrypted, versioned, TLS-only (bucket policy) and
   `prevent_destroy`, with S3 native locking (no DynamoDB). The bucket is created once by [infra/bootstrap/](../infra/bootstrap/), which keeps its own local state.
-- **DNS isn't managed here.** `example.com` is an org-controlled Route 53 zone in another
+- **DNS isn't managed here.** `example.com` should be an org-controlled Route 53 zone in another
   account. Records are requested through the org DNS approval workflow, using Terraform outputs and, for
   the ALB alias, the ALB's DNS name and hosted zone ID from the AWS CLI.
   The nine records are:
@@ -221,10 +209,6 @@ Each unit has one job and is tested on its own.
 | [app/account_web.py](../app/account_web.py) | `/account` self-service |
 | [app/audit.py](../app/audit.py) | One JSON line per admin action |
 
-**Dependencies** ([requirements.txt](../requirements.txt)): Flask, gunicorn, boto3, anthropic,
-joserfc (JWT and JWKS), cryptography (floor `>=50.0`, above known advisories), segno (TOTP QR
-code). The token request and PKCE use only the standard library. joserfc (with cryptography) and
-segno are vetted in the [license register](license-register/).
 
 ### 4.2 Routes
 
@@ -242,7 +226,6 @@ segno are vetted in the [license register](license-register/).
 | `POST /admin/users/<sub>/<action>` | admin, CSRF | Disable, enable, delete or change email |
 | `GET /account`, `POST /account/<action>` | admin (CSRF on POST) | Admin self-service. User: 403. |
 
-There is no `/login`; it returns 404.
 
 ---
 
@@ -287,8 +270,6 @@ The daily brake is a **safety brake, not a budget**: it resets when the task res
 from a stream that fails part-way aren't counted. It's checked before each request, so requests
 already streaming when it trips can overshoot it slightly. At Opus output pricing the worst case is
 about $1.25 a day, plus that overshoot.
-
-Other responses: invalid input 400, signed out 401.
 
 ---
 
@@ -493,7 +474,7 @@ need no IAM permissions ([app/account_web.py](../app/account_web.py),
 
 - **Admins** are created, disabled, enabled and deleted with the AWS CLI only (runbook). The task
   role can only read admin-pool users, for revalidation.
-- **Users** can't lose a password because they don't have one. A user who loses their mailbox gets
+- **Regular Users** can't lose a password because they don't have one. A user who loses their mailbox gets
   their email changed by an admin.
 - **A locked-out admin** is recovered by someone with AWS credentials: clear their MFA, set a
   temporary password and share it out of band. The admin chooses a new password at the next
@@ -594,73 +575,8 @@ alarms named `sarcastifyer-*`) can publish. It receives:
 | Forwarder Lambda role | Write its own log group; `s3:GetObject` on `inbound/*`; `ses:SendEmail`/`SendRawEmail` From `email_sender` to `forward_to` only |
 | Cognito email | AWS service-linked role `AWSServiceRoleForAmazonCognitoIdpEmailService` |
 
----
 
-## 11. Data classification and governance
-
-- The whole app is **Internal** classification: names and emails in Cognito, admin
-  audit lines, transform input and output, result emails, and inbound mail to the role addresses.
-- **Limited and Restricted data are prohibited.**
-- **Third parties:** transform text goes to the Anthropic API. Identity data stays in AWS and is
-  never sent to Anthropic.
-- **Retention:** app and forwarder logs 30 days; inbound mail 7 days; no transform text is stored.
-- **Fixtures and examples** are de-identified: tests use made-up names and `example.com` addresses.
-
----
-
-## 12. Security posture
-
-**Controls, outside in:**
-1. HTTPS only, TLS 1.2+, HSTS
-2. WAF: managed rule groups and the sign-in rate limit
-3. Cognito sign-in: email code (users), password + optional MFA (admins), lockout after repeated
-   wrong passwords
-4. App: callback checks, signed session, 15-minute revalidation, CSRF, role checks, safe `next`,
-   anti-framing and `nosniff` headers (no full CSP yet)
-5. Guardrails: input cap, per-user rate limit, daily token brake
-6. Least-privilege IAM, secrets in Secrets Manager
-
-**Accepted risks:**
-- **Open to all IPs.** Sign-in, the WAF and the guardrails are the gates.
-- **Single factor for users.** Whoever controls a user's mailbox controls their account. Admins can
-  disable, delete or re-address a user, and the data is Internal at most.
-- **Recipients not pinned in IAM.** A compromised task could send From `hello@` to any address.
-  Compensating controls: the From pin, the app only ever sending to the session's email, SES
-  suppression, and bounce and complaint alerts.
-- **Code-email abuse.** Anyone who knows a user's email can make managed login send them code
-  emails. The cost is SES messages and possible complaints, which raise alerts.
-- **Revalidation window.** Up to 15 minutes normally; fails open for the rest of the 8-hour session
-  during a sustained Cognito or IAM outage.
-- **Forced sign-out through the callback.** A cross-site link to a callback with a bad `state`
-  clears the victim's session. It grants nothing.
-- **Admin access token in the cookie.** The cookie is signed, not encrypted, so an admin can read
-  their own token. It's sent only over HTTPS, is `HttpOnly`, lasts an hour and is never logged.
-- **No WAF on the user pools.** Guessing on managed login is limited only by Cognito's per-user
-  lockout.
-- **Task has a public IP.** It runs in a public subnet with no NAT gateway, to save cost. Inbound
-  is limited to the ALB security group, so in practice it's egress-only. Private subnets with a NAT
-  gateway would remove the public IP.
-- **Secrets in Terraform state** (client secrets, signing key). The state bucket is encrypted,
-  versioned, TLS-only and `prevent_destroy`, but has no access logging and no policy limiting which
-  principals can read it.
-- **No full CSP.** The app sends `nosniff`, `X-Frame-Options: DENY` and `frame-ancestors 'none'`
-  only. There's no known XSS path: model output is rendered with `textContent`, and templates
-  autoescape.
-- **No KMS keys:** SSE-S3 on the inbound bucket, and AWS-owned keys for log groups and the SNS
-  topic. No WAF, ALB or VPC flow logging.
-
----
-
-## 13. Testing
-
-- Unit tests with no network ([tests/](../tests/)), run with `pytest`. Python 3.12, matching the
-  image.
-- **Transformer:** a mocked Anthropic client (prompt assembly, streaming, errors).
-- **OIDC:** locally generated keys with a fake JWKS and token endpoint. Each callback check fails
-  closed, including pool confusion.
-- **Directory and account clients:** the boto3 Stubber.
-- **Web:** the Flask test client for authorization, revalidation, sign-out, CSRF, admin actions and
-  audit lines, `/account`, guardrails, email recipient, and cookie size.
-- **Terraform:** `terraform fmt -check`, `terraform validate`, and a plan review.
-
+Disclaimer: although every attempt has been made to secure this sample application, there is no
+guarantee offered and no warranty provided. You are responsible for your own AWS account and
+application security.
 
