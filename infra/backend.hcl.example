@@ -1,0 +1,5 @@
+# Template for backend.hcl. Copy it and set the state bucket name:
+#   cp infra/backend.hcl.example infra/backend.hcl
+# The copy is gitignored. It must name the same bucket that infra/bootstrap creates
+# (its state_bucket_name). Use it with: terraform init -backend-config=backend.hcl
+bucket = "<state-bucket-name>"

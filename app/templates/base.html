@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sarcastifyer{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  {% if identity %}
+  <header class="topbar">
+    <span>Signed in as {{ identity.display_name }}</span>
+    <nav aria-label="Site">
+      <a href="{{ url_for('main.index') }}">Sarcastifyer</a>
+      {% if identity.is_admin %}
+      <a href="{{ url_for('admin.dashboard') }}">Admin</a>
+      <a href="{{ url_for('account.index') }}">Account</a>
+      {% endif %}
+      <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button type="submit">Sign out</button>
+      </form>
+    </nav>
+  </header>
+  {% endif %}
+  <main class="card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div role="status">
+      {% for category, message in messages %}<p class="flash {{ category }}">{{ message }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

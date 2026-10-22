@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Account — Sarcastifyer{% endblock %}
+{% block content %}
+    <h1>Your account</h1>
+    <dl>
+      <dt>Name</dt><dd>{{ identity.given_name }} {{ identity.family_name }}</dd>
+      <dt>Email</dt><dd>{{ identity.email }}</dd>
+    </dl>
+
+    {% if state %}
+    <h2>Multi-factor sign-in</h2>
+    <p>After your password, you're asked for a code from your preferred factor.</p>
+
+    <h3>Authenticator app</h3>
+    {% if totp %}
+    <p>Scan this code with your authenticator app, or enter the key by hand.</p>
+    <figure>
+      {{ totp.qr_svg }}
+      <figcaption>Key: <code>{{ totp.secret }}</code></figcaption>
+    </figure>
+    <form method="post" action="{{ url_for('account.act', action='totp-verify') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="code">6-digit code from the app</label>
+        <input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+          autocomplete="one-time-code" required>
+      </div>
+      <button type="submit">Confirm</button>
+    </form>
+    {% elif state.totp %}
+    <p>On.</p>
+    <form method="post" action="{{ url_for('account.act', action='totp-remove') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button type="submit">Remove authenticator app</button>
+    </form>
+    {% else %}
+    <p>Off.</p>
+    <form method="post" action="{{ url_for('account.act', action='totp-begin') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button type="submit">Set up</button>
+    </form>
+    {% endif %}
+
+    <h3>Email codes</h3>
+    <p>{{ "On." if state.email else "Off." }} Codes go to {{ identity.email }}.</p>
+    <form method="post"
+      action="{{ url_for('account.act', action='email-mfa-off' if state.email else 'email-mfa-on') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button type="submit">{{ "Turn off email codes" if state.email else "Turn on email codes" }}</button>
+    </form>
+
+    {% if state.totp and state.email %}
+    <h3>Preferred factor</h3>
+    <form method="post" action="{{ url_for('account.act', action='preferred') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <fieldset>
+        <legend>Ask me for a code from</legend>
+        <label><input type="radio" name="factor" value="totp"
+          {% if state.preferred == "SOFTWARE_TOKEN_MFA" %}checked{% endif %}> Authenticator app</label>
+        <label><input type="radio" name="factor" value="email"
+          {% if state.preferred == "EMAIL_OTP" %}checked{% endif %}> Email</label>
+      </fieldset>
+      <button type="submit">Save</button>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    <h2>Change password</h2>
+    <form method="post" action="{{ url_for('account.act', action='password') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="current_password">Current password</label>
+        <input id="current_password" name="current_password" type="password"
+          autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="new_password">New password</label>
+        <input id="new_password" name="new_password" type="password" autocomplete="new-password"
+          minlength="8" required aria-describedby="password-rules">
+        <p id="password-rules">At least 8 characters, with upper and lower case letters, a
+          number and a symbol.</p>
+      </div>
+      <div class="field">
+        <label for="confirm_password">New password again</label>
+        <input id="confirm_password" name="confirm_password" type="password"
+          autocomplete="new-password" minlength="8" required>
+      </div>
+      <button type="submit">Change password</button>
+    </form>
+{% endblock %}

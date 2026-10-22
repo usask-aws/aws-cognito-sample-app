@@ -1,0 +1,40 @@
+# Secrets / credentials — never commit
+.env
+.env.*
+*.pem
+*.key
+.aws/
+credentials
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Data — keep local data out of history
+data/
+*.csv
+*.parquet
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.auto.tfvars
+infra/backend.hcl
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Terraform build artifacts (Lambda zip)
+infra/.build/

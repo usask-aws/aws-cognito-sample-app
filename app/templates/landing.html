@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="titlebar">
+      <img class="logo" src="{{ url_for('static', filename='images/logo.png') }}"
+        alt="Sarcastifyer logo" width="100" height="100">
+      <h1>Sarcastifyer</h1>
+    </div>
+    <p>Sign in with the email address your invitation was sent to. We'll email you a
+      one-time code each time you sign in.</p>
+    <p><a class="button" href="{{ url_for('auth.login') }}">Sign in</a></p>
+    <p>This is a proof-of-concept application that demonstrates Amazon Cognito sign-in. It isn't intended for production use.</p>
+{% endblock %}

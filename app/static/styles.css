@@ -1,0 +1,42 @@
+body { font-family: system-ui, sans-serif; margin: 0; background: #f4f1ea; }
+.card { max-width: 720px; margin: 2rem auto; padding: 1.5rem; background: #fff;
+  border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+h1 { margin-top: 0; }
+.titlebar { display: flex; align-items: center; gap: 1rem; }
+.logo { width: 100px; height: 100px; object-fit: contain; }
+.notice { color: #8a5a00; background: #fff6e0; padding: .5rem .75rem;
+  border-radius: 6px; font-size: .9rem; }
+textarea { width: 100%; min-height: 180px; box-sizing: border-box; padding: .5rem;
+  font: inherit; }
+.email-me { margin-top: .5rem; }
+.row { display: flex; justify-content: space-between; align-items: center;
+  margin: .5rem 0; }
+#counter { color: #555; font-size: .9rem; }
+button { padding: .5rem 1rem; font: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+pre { white-space: pre-wrap; background: #f7f7f7; padding: .75rem; border-radius: 6px;
+  min-height: 3rem; }
+.error { color: #b00020; }
+.topbar { display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; flex-wrap: wrap; max-width: 720px; margin: 1rem auto 0; padding: 0 1.5rem; }
+.topbar nav { display: flex; align-items: center; gap: 1rem; }
+.inline { display: inline; margin: 0; }
+a.button { display: inline-block; padding: .5rem 1rem; background: #4b1c9f; color: #fff;
+  border-radius: 6px; text-decoration: none; }
+a.button:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible,
+  select:focus-visible, textarea:focus-visible { outline: 3px solid #4b1c9f; outline-offset: 2px; }
+.stack { display: grid; gap: .75rem; max-width: 420px; }
+.field { display: grid; gap: .25rem; }
+.field input { font: inherit; padding: .4rem; }
+table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.actions a, .actions button { display: inline-block; padding: .25rem .75rem;
+  font: inherit; font-size: .9rem; line-height: 1.4; color: #4b1c9f; background: #fff;
+  border: 1px solid #4b1c9f; border-radius: 6px; text-decoration: none; cursor: pointer; }
+.actions a:hover, .actions button:hover { background: #f1ecfa; }
+.flash { padding: .5rem .75rem; border-radius: 6px; background: #eef6ee; }
+.flash.error { background: #fdecee; color: #b00020; }
+.flash.warning { background: #fff6e0; color: #8a5a00; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; }

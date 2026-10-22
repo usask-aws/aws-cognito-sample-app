@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Sarcastifyer{% endblock %}
+{% block content %}
+    <h1>{{ title }}</h1>
+    <p>{{ message }}</p>
+    {% if retry_url %}<p><a class="button" href="{{ retry_url }}">Try again</a></p>{% endif %}
+    <p><a href="{{ url_for('main.index') }}">Back to Sarcastifyer</a></p>
+{% endblock %}

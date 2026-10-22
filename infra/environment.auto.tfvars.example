@@ -1,0 +1,61 @@
+# Template for environment.auto.tfvars. Copy it, then replace every <placeholder>:
+#   cp infra/environment.auto.tfvars.example infra/environment.auto.tfvars
+# The copy is gitignored (*.auto.tfvars). image_tag is passed per deploy with -var.
+
+# AWS region for every resource, the ACM certificate included (it's on the ALB).
+# The state backend's region is set separately in backend.tf.
+region = "<aws-region>"
+
+# Prefix for resource names (ALB, ECS, ECR, SNS, Lambda, S3, WAF). It's also the
+# start of the Cognito managed login prefix domains <app-name>-users and
+# <app-name>-admins, which must be free in the region.
+app_name = "<app-name>"
+
+# IPv4 CIDRs for a future allowlist. Only the WAF IP set uses them; nothing
+# blocks other IPs while the app is open to all.
+allowed_cidrs = [
+  "192.0.2.0/24",    # <description>
+  "198.51.100.1/32", # <description>
+]
+
+# The app's custom domain. It's on the ACM certificate, the SES domain identity and
+# the inbound MX. Its DNS records are published outside Terraform.
+domain_name = "<app.example.com>"
+
+# From address for result emails, Cognito emails and forwarded inbound mail. Must
+# be on domain_name.
+email_sender = "hello@<app.example.com>"
+
+# Display name shown on the From of every email.
+email_sender_name = "<Display Name>"
+
+# Local parts (before the @) on domain_name that accept inbound mail. SES rejects
+# all other addresses.
+inbound_local_parts = [
+  "hello",      # app From address
+  "postmaster", # RFC 5321 4.5.1 (required)
+  "abuse",      # RFC 2142 section 4
+  "webmaster",  # RFC 2142 section 5 (we serve HTTP)
+]
+
+# S3 key prefix for stored inbound mail. Must end with "/".
+inbound_prefix = "inbound/"
+
+# Where inbound mail is forwarded and where the alert topic sends email.
+forward_to = "<owner@example.com>"
+
+# Standard attributes every account must have, in both Cognito pools. They can't be
+# changed once a pool exists.
+cognito_required_attributes = ["email", "given_name", "family_name"]
+
+# Cheap IP checks first. WCU: 25 + 50 + 200 + 700 + 200 + 100 = 1275 of the 1500
+# included. All rules keep their default actions, so the Core rule set also blocks
+# request bodies over 8 KB (long non-ASCII input to /transform can hit that).
+waf_managed_rule_groups = [
+  "AWSManagedRulesAmazonIpReputationList",
+  "AWSManagedRulesAnonymousIpList",
+  "AWSManagedRulesKnownBadInputsRuleSet",
+  "AWSManagedRulesCommonRuleSet",
+  "AWSManagedRulesLinuxRuleSet",
+  "AWSManagedRulesUnixRuleSet",
+]

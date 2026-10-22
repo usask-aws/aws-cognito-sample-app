@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Admin — Sarcastifyer{% endblock %}
+{% block content %}
+    <h1>Admin</h1>
+
+    <h2>Invite a user</h2>
+    {% if errors.form %}<p class="error" role="alert">{{ errors.form }}</p>{% endif %}
+    <form method="post" action="{{ url_for('admin.invite') }}" class="stack" novalidate>
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      {% for name, label, type, autocomplete, maxlength in [
+           ("given_name", "First name", "text", "given-name", 100),
+           ("family_name", "Last name", "text", "family-name", 100),
+           ("email", "Email", "email", "email", 254)] %}
+      <div class="field">
+        <label for="{{ name }}">{{ label }}</label>
+        <input id="{{ name }}" name="{{ name }}" type="{{ type }}" required
+          maxlength="{{ maxlength }}" autocomplete="{{ autocomplete }}"
+          value="{{ form.get(name, '') }}"
+          {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+        {% if errors.get(name) %}<p class="error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit">Send invitation</button>
+    </form>
+
+    <h2>Users</h2>
+    {% if list_error %}<p class="error" role="alert">{{ list_error }}</p>{% endif %}
+    {% if users %}
+    <table>
+      <caption class="visually-hidden">User accounts</caption>
+      <thead>
+        <tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Status</th>
+          <th scope="col">Created</th><th scope="col">Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for user in users %}
+        <tr>
+          <td>{{ user.given_name }} {{ user.family_name }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ "Enabled" if user.enabled else "Disabled" }}</td>
+          <td>{{ user.created.strftime("%Y-%m-%d") if user.created else "" }}</td>
+          <td class="actions">
+            {% if user.enabled %}
+            <a href="{{ url_for('admin.confirm', sub=user.sub, action='disable') }}">Disable<span class="visually-hidden"> {{ user.email }}</span></a>
+            {% else %}
+            <form method="post" action="{{ url_for('admin.act', sub=user.sub, action='enable') }}" class="inline">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <button type="submit">Enable<span class="visually-hidden"> {{ user.email }}</span></button>
+            </form>
+            {% endif %}
+            <a href="{{ url_for('admin.confirm', sub=user.sub, action='email') }}">Change email<span class="visually-hidden"> for {{ user.email }}</span></a>
+            <a href="{{ url_for('admin.confirm', sub=user.sub, action='delete') }}">Delete<span class="visually-hidden"> {{ user.email }}</span></a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif not list_error %}
+    <p>No users yet.</p>
+    {% endif %}
+    {% if next_page %}
+    <p><a href="{{ url_for('admin.dashboard', page=next_page) }}">Next page</a></p>
+    {% endif %}
+{% endblock %}

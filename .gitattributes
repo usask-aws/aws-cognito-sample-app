@@ -1,0 +1,10 @@
+# Store text files with LF and check them out with LF on every platform, whatever
+# core.autocrlf says. A CRLF checkout changes the forwarder Lambda's zip, and so its
+# source_code_hash, which shows up as drift in terraform plan.
+* text=auto eol=lf
+
+# Binary files: never convert.
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary

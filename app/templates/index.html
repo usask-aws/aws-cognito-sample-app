@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="titlebar">
+      <img class="logo" src="{{ url_for('static', filename='images/logo.png') }}"
+        alt="Sarcastifyer logo" width="100" height="100">
+      <h1>Sarcastifyer</h1>
+    </div>
+    <p class="notice">Don't paste Limited/Restricted data (student records, PII,
+      health, financial, etc.).</p>
+    <label for="input">Give me your normal text, I'll make it sarcastic:</label>
+    <textarea id="input" maxlength="{{ max_chars }}"
+      placeholder="Paste text to sarcastify..."></textarea>
+    <div class="email-me">
+      <input type="checkbox" id="email-me">
+      <label for="email-me">Email me the result</label>
+    </div>
+    <div class="row">
+      <span id="counter">0/{{ max_chars }} characters</span>
+      <button id="go" type="button">Sarcastify</button>
+    </div>
+    <h2>Result</h2>
+    <pre id="output" aria-live="polite"></pre>
+{% endblock %}
+{% block scripts %}
+  <script>window.MAX_CHARS = {{ max_chars }};</script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

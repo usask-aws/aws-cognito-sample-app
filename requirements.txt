@@ -1,0 +1,8 @@
+anthropic>=0.69
+flask>=3.0
+boto3>=1.34
+gunicorn>=22.0
+joserfc>=1.7
+# joserfc's own floor (45.0.1) allows versions with advisories fixed in 46.0.5-50.0.0.
+cryptography>=50.0
+segno>=1.6
