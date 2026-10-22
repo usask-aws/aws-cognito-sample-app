@@ -1,11 +1,7 @@
 # Sarcastifyer — Design and architecture
 
-The current design of the deployed application, as of the Cognito cutover on 2026-10-22. This is
-the single source for design and architecture. For how to set up, deploy and operate the app, see
-the [operations runbook](RUNBOOK.md).
-
-How the design got here is summarised in [Design history](#14-design-history). Earlier design
-documents, plans and reviews are in git history only.
+The current design of the deployed application. This is the single source for design and architecture.
+For how to set up, deploy and operate the app, see the [operations runbook](RUNBOOK.md).
 
 ---
 
@@ -121,10 +117,10 @@ The account's network is **org-managed** and Terraform only looks it up by Name 
 ### 3.3 WAF
 
 A REGIONAL WAFv2 web ACL is associated with the ALB ([infra/waf.tf](../infra/waf.tf)). Its
-**default action is allow**: the app is open to all IPs (owner decision, 2026-10-20). Rules, in
-order, all at their default Block actions:
+**default action is allow**: the app is open to all IPs. On top of that, rules are at their
+default Block actions:
 
-1. **`rate-limit-login`:** blocks an IP that sends more than **100 requests in 5 minutes** to the
+1. **`rate-limit-login`:** blocks an IP that sends more than **20 requests in 5 minutes** to the
    app's sign-in routes (paths starting `/auth/` or `/admin/auth/`, any method), until its rate
    drops. The path is URL-decoded and normalized first, as gunicorn and Flask do, so variants like
    `//auth/login` and `/%61uth/login` are counted too.
@@ -602,10 +598,9 @@ alarms named `sarcastifyer-*`) can publish. It receives:
 
 ## 11. Data classification and governance
 
-- The whole app is **Internal** (owner decision, 2026-10-21): names and emails in Cognito, admin
+- The whole app is **Internal** classification: names and emails in Cognito, admin
   audit lines, transform input and output, result emails, and inbound mail to the role addresses.
-- **Limited and Restricted data are prohibited.** The transform page says: "Don't paste
-  Limited/Restricted data (student records, PII, …)".
+- **Limited and Restricted data are prohibited.**
 - **Third parties:** transform text goes to the Anthropic API. Identity data stays in AWS and is
   never sent to Anthropic.
 - **Retention:** app and forwarder logs 30 days; inbound mail 7 days; no transform text is stored.
@@ -626,8 +621,7 @@ alarms named `sarcastifyer-*`) can publish. It receives:
 6. Least-privilege IAM, secrets in Secrets Manager
 
 **Accepted risks:**
-- **Open to all IPs.** The allowlist was removed (owner decision, 2026-10-20). Sign-in, the WAF and
-  the guardrails are the gates.
+- **Open to all IPs.** Sign-in, the WAF and the guardrails are the gates.
 - **Single factor for users.** Whoever controls a user's mailbox controls their account. Admins can
   disable, delete or re-address a user, and the data is Internal at most.
 - **Recipients not pinned in IAM.** A compromised task could send From `hello@` to any address.
@@ -642,7 +636,7 @@ alarms named `sarcastifyer-*`) can publish. It receives:
 - **Admin access token in the cookie.** The cookie is signed, not encrypted, so an admin can read
   their own token. It's sent only over HTTPS, is `HttpOnly`, lasts an hour and is never logged.
 - **No WAF on the user pools.** Guessing on managed login is limited only by Cognito's per-user
-  lockout. A REGIONAL web ACL on each pool is a possible future addition, at extra cost.
+  lockout.
 - **Task has a public IP.** It runs in a public subnet with no NAT gateway, to save cost. Inbound
   is limited to the ALB security group, so in practice it's egress-only. Private subnets with a NAT
   gateway would remove the public IP.
@@ -653,11 +647,7 @@ alarms named `sarcastifyer-*`) can publish. It receives:
   only. There's no known XSS path: model output is rendered with `textContent`, and templates
   autoescape.
 - **No KMS keys:** SSE-S3 on the inbound bucket, and AWS-owned keys for log groups and the SNS
-  topic. No WAF, ALB or VPC flow logging. These were re-accepted for Internal data (owner decision,
-  2026-10-21).
-
-**Unconfirmed:** how many wrong email codes Cognito allows and how long a code stays valid. Neither
-is documented by AWS or was tested at cutover.
+  topic. No WAF, ALB or VPC flow logging.
 
 ---
 
@@ -672,42 +662,5 @@ is documented by AWS or was tested at cutover.
 - **Web:** the Flask test client for authorization, revalidation, sign-out, CSRF, admin actions and
   audit lines, `/account`, guardrails, email recipient, and cookie size.
 - **Terraform:** `terraform fmt -check`, `terraform validate`, and a plan review.
-- **Manual:** acceptance checks in the browser after each significant deploy. At the Cognito
-  cutover (2026-10-22) all 11 passed: landing page and `/login` 404, admin first sign-in, user
-  invitation, user code sign-in, 403 for users on `/admin` and `/account`, admin TOTP, email MFA
-  and password change, disable and change email ending sessions within 15 minutes, result email to
-  the signed-in user, sign-out from both pools, and the admin audit lines. SPF, DKIM and DMARC
-  passed on every email checked.
 
----
 
-## 14. Design history
-
-| Date | Change |
-|---|---|
-| 2026-07-15 | Original design: stateless Flask app on App Runner, shared passcode, campus-only WAF allowlist |
-| 2026-07-15 | App Runner retired: moved to one ECS Fargate task behind an ALB with a REGIONAL WAF, all in `ca-central-1`. Served over plain HTTP, so the data was reclassified Public. |
-| 2026-10, before the Cognito work | Custom domain with an ACM certificate (HTTPS, HSTS), org-managed VPC, SES domain identity, inbound mail forwarding and alerts |
-| 2026-10-20 | Opened to all IPs; WAF moved to default allow with managed rule groups |
-| 2026-10-21/22 | Passcode replaced by Cognito user pools; data reclassified Internal; recipient allowlist removed; cut over with no rollback (owner decision, 2026-10-22) |
-| 2026-10-22 | Post-cutover hardening: immutable ECR tags, deploy by digest, lifecycle policy keeping two tagged images; `nosniff` and anti-framing headers; state bucket TLS-only and `prevent_destroy`; no container `HEALTHCHECK` (the ALB check covers it) |
-
-**Rejected options, still relevant:**
-- **CloudFront:** forces the WAF and certificate into `us-east-1`, which breaks the all-`ca-central-1`
-  rule.
-- **API Gateway:** buffers responses, which breaks SSE streaming.
-- **Lambda or more than one task:** the guardrail state would have to move to a datastore such as
-  DynamoDB. That's the path if the app ever needs to scale.
-- **ALB authentication with Cognito:** the Cognito design chose app-side OIDC instead, so the ALB
-  doesn't change.
-- **Cognito custom domains:** need a `us-east-1` certificate and new DNS records.
-
----
-
-## 15. Open items
-
-- Confirm Cognito's attempt limit and expiry for email sign-in codes.
-- Possible later additions: a WAF web ACL on each user pool, and an allowlist (the variable and IP
-  set are kept for it).
-- Security follow-ups: a full Content-Security-Policy; state bucket access logging and a policy
-  limiting which principals can read it.
